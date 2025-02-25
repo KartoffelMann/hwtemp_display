@@ -4,15 +4,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-Future<Temps> fetchTemps() async {
+Future<List<Temps>> fetchTemps() async {
   final response = await http.get(
-    Uri.parse('http://192.168.1.8:5000/'),
+    Uri.parse('http://192.168.1.9:8000/data'),
   );
 
   if (response.statusCode == 200) {
     // If the server did return a 200 OK response,
     // then parse the JSON.
-    return Temps.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    return (jsonDecode(response.body) as List).map((i) => Temps.fromJson(i)).toList();
   } else {
     // If the server did not return a 200 OK response,
     // then throw an exception.
@@ -21,20 +21,18 @@ Future<Temps> fetchTemps() async {
 }
 
 class Temps {
-  final double gpuTemp;
-  final double cpuTemp;
-  final double gpuFan;
-  final double cpuFan;
+  final String identifier;
+  final String name;
+  final double value;
 
-  const Temps({required this.gpuTemp, required this.cpuTemp, required this.gpuFan, required this.cpuFan});
+  const Temps({required this.identifier, required this.name, required this.value});
 
   factory Temps.fromJson(Map<String, dynamic> json) {
     return switch (json) {
-      {'gpuTemp': double gpuTemp, 'cpuTemp': double cpuTemp, 'gpuFan': double gpuFan, 'cpuFan': double cpuFan} => Temps(
-        gpuTemp: gpuTemp,
-        cpuTemp: cpuTemp,
-        gpuFan: gpuFan,
-        cpuFan: cpuFan,
+      {'identifier': String identifier, 'name': String name, 'value': double value} => Temps(
+        identifier: identifier,
+        name: name,
+        value: value,
       ),
       _ => throw const FormatException('Failed to load temps.'),
     };
@@ -51,12 +49,27 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late Future<Temps> futureTemps;
+  late Future<List<Temps>> futureTemps;
+  Timer? timer;
 
   @override
   void initState() {
     super.initState();
     futureTemps = fetchTemps();
+    timer = Timer.periodic(Duration(seconds: 5), (Timer t) => updateTemp());
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  void updateTemp()
+  {
+    setState(() {
+      futureTemps = fetchTemps();
+    });
   }
 
   @override
@@ -69,11 +82,11 @@ class _MyAppState extends State<MyApp> {
       home: Scaffold(
         appBar: AppBar(title: const Text('Fetch Data Example')),
         body: Center(
-          child: FutureBuilder<Temps>(
+          child: FutureBuilder<List<Temps>>(
             future: futureTemps,
             builder: (context, snapshot) {
               if (snapshot.hasData) {
-                return Text(snapshot.data!.gpuTemp.toString());
+                return Text(snapshot.data![9].value.toString());
               } else if (snapshot.hasError) {
                 return Text('${snapshot.error}');
               }
